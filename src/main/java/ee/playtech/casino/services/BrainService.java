@@ -18,7 +18,7 @@ public class BrainService {
     public static PlayerAction getIllegitimateAction(List<PlayerAction> actions, Map<UUID,Match> matchMap) {
 
         accountBalance = 0;
-        winRate = BigDecimal.ZERO;
+        winRate = BigDecimal.ZERO.setScale(2,RoundingMode.HALF_UP);
         casinoBalance = 0;
         BigDecimal numberOfPlacedBets = BigDecimal.ZERO;
         BigDecimal numberOfWonGames = BigDecimal.ZERO;
@@ -26,12 +26,17 @@ public class BrainService {
 
         for (PlayerAction action: actions) {
 
+            if (actionIsInvalid(action)){
+                return action;
+            }
+
             if (action.getOperation().equals(PlayerOperation.DEPOSIT)){
                 accountBalance = accountBalance + action.getCoinNumber(); //add money to balance
             }
 
             else if (action.getOperation().equals(PlayerOperation.BET)){
                 if (accountBalance < action.getCoinNumber()){
+                    System.out.println("User tried to bet more money than he had: " + action);
                     return action; //user tried to bet more money than he had
                 }
 
@@ -40,9 +45,11 @@ public class BrainService {
 
                 Match currentMatch = matchMap.get(matchIdUserPlacedBet);
                 if (currentMatch == null){
+                    System.out.println("User placed bet on nonexistent match: " + action);
                     return action; //User placed bet on nonexistent match
                 }
                 if (matchIdsUserPlacedBetBefore.contains(matchIdUserPlacedBet)){
+                    System.out.println("User already placed bet on this match: " + action);
                     return action; //User already placed bet on this match
                 }
 
@@ -67,6 +74,7 @@ public class BrainService {
 
             else if (action.getOperation().equals(PlayerOperation.WITHDRAW)){
                 if (accountBalance < action.getCoinNumber()){
+                    System.out.println("User tried to withdraw more money than he had: " + action);
                     return action; //user tried to withdraw more money than he had
                 }
                 accountBalance = accountBalance - action.getCoinNumber();
@@ -76,7 +84,9 @@ public class BrainService {
             }
         }
 
-        winRate = numberOfWonGames.divide(numberOfPlacedBets, 2,RoundingMode.HALF_UP);
+        if (!numberOfPlacedBets.equals(BigDecimal.ZERO)){
+            winRate = numberOfWonGames.divide(numberOfPlacedBets, 2,RoundingMode.HALF_UP);
+        }
         return null;
     }
 
@@ -90,6 +100,31 @@ public class BrainService {
         }
     }
 
+
+    private static boolean actionIsInvalid(PlayerAction action) {
+
+        if (action.getCoinNumber() <= 0){
+            System.out.println("User used negative value or 0 in coinNumber : " + action);
+            return true;
+        }
+
+        if (action.getOperation().equals(PlayerOperation.BET) &&
+                (action.getMatchId().isEmpty() ||
+                action.getBetSide().isEmpty())){
+            System.out.println("User tried to BET without specifying matchId or betSide: " + action);
+            return true;
+        }
+        if ((action.getOperation().equals(PlayerOperation.WITHDRAW) ||
+                action.getOperation().equals(PlayerOperation.DEPOSIT)) &&
+                (action.getMatchId().isPresent() ||
+                        action.getBetSide().isPresent())){
+            System.out.println("User tried to withdraw or deposit and specified matchId or betSide: " + action);
+            return true;
+        }
+
+
+        return false;
+    }
 
     public static long getAccountBalance() {
         return accountBalance;
